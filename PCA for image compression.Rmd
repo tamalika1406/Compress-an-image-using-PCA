@@ -1,0 +1,97 @@
+---
+title: "PCA for image compression"
+author: "Tamalika Basu"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup}
+tiger <- readJPEG('tiger.jpeg', native = FALSE)
+ncol(tiger)
+
+nrow(tiger)
+
+## extracting each component of the RGB color scheme
+red <- tiger[,,1]
+green <- tiger[,,2]
+blue <- tiger[,,3]
+
+## PCA on all the three matrices to compress the data
+r.pca <- prcomp(red, center = FALSE)
+g.pca <- prcomp(green, center = FALSE)
+b.pca <- prcomp(blue, center = FALSE)
+
+rgb.pca <- list(r.pca, g.pca, b.pca)
+
+## Plot the eigenvalues/variances against the number of dimensions
+f11 <- fviz_eig(r.pca, main = "Red", barfill = "red", ncp = 10)
+f22 <- fviz_eig(g.pca, main = "Green", barfill = "green", ncp = 10)
+f33 <- fviz_eig(b.pca, main = "Blue", barfill = "blue", ncp = 10)
+
+grid.arrange(f11, f22, f33, ncol = 3)
+
+```
+
+
+```{r}
+## vector of dimensions
+k <- c(3, 5, 10, 25, 50, 100, 150, 200, 250, 300, 350, 802)
+
+
+## Save new images in the folder 'compressed'
+for (i in k) {
+  pca.img <- sapply(rgb.pca, function(j) {
+    compressed.img <- j$x[,1:i] %*% t(j$rotation[,1:i])
+  }, simplify = 'array')
+  writeJPEG(pca.img, paste('compressed/compressed_', round(i,0), '_tiger.jpg', sep = ''))
+}
+
+## Size of original image
+original <- file.info('tiger.jpeg')$size / 1000
+
+ratio <- c()
+image_name <- c()
+original_size <- c()
+reduced_size <- c()
+difference_pct <- c()
+
+## Reading the saved images
+imgs <- dir('compressed/')
+
+for (i in imgs) {
+  full.path <- paste('compressed/', i, sep='')
+  image_name <- append(image_name, i)
+  
+  ##  compression ratio (size of the new image/ size of original image)
+  ratio <- append(ratio,(file.info(full.path)$size / 1000)/(original))
+  
+  ## Size of original image
+  original_size <- append(original_size,original)
+  
+  ## Size of reduced image
+  reduced_size <- append(reduced_size,file.info(full.path)$size / 1000)
+  
+  ## Percent difference in the size
+  difference_pct <- append(difference_pct, round((file.info(full.path)$size / 1000 - original) / original, 2) * 100)
+  
+}
+
+## no. of Principle components
+n_PC <- c(10, 100, 150, 200, 25, 250, 3, 300, 350, 5, 50, 1200)
+
+df <- data.frame(image_name, original_size,reduced_size, difference_pct,  ratio, n_PC)
+df
+
+
+```
+
+
+```{r}
+
+## Plot of compression ratio vs no. of principle components
+ggplot(df, aes(x=n_PC, y=ratio)) + geom_line()
+
+
+## From the plot we observe that the compression ratio becomes almost same after k=300, meaning that maximum variation in the image was captured around k=300
+
+```
